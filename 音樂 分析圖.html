@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音樂元素全景旭日圖</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #121212 0%, #1e1e2e 100%);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #ff6b6b;
+            text-shadow: 0 0 15px rgba(255, 107, 107, 0.5);
+            font-size: 2.5em;
+        }
+        #chart-container {
+            width: 950px;
+            height: 950px;
+            margin: 0 auto;
+            background: rgba(30, 30, 46, 0.7);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+            padding: 25px;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 107, 107, 0.2);
+        }
+        .tooltip {
+            position: absolute;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            border-radius: 10px;
+            pointer-events: none;
+            font-size: 14px;
+            box-shadow: 0 0 25px rgba(255, 107, 107, 0.4);
+            max-width: 350px;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            line-height: 1.7;
+            z-index: 100;
+        }
+        .legend-container {
+            margin-top: 35px;
+            width: 900px;
+            background: rgba(30, 30, 46, 0.7);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 107, 107, 0.2);
+        }
+        .legend-title {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #ff6b6b;
+            font-size: 1.4em;
+            text-shadow: 0 0 10px rgba(255, 107, 107, 0.3);
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 10px;
+            font-size: 13px;
+            background: rgba(255, 107, 107, 0.1);
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            transition: all 0.3s;
+        }
+        .legend-item:hover {
+            background: rgba(255, 107, 107, 0.2);
+            transform: translateY(-3px);
+        }
+        .legend-color {
+            width: 18px;
+            height: 18px;
+            margin-right: 10px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px currentColor;
+        }
+        .description {
+            max-width: 850px;
+            margin: 35px auto;
+            text-align: center;
+            line-height: 1.8;
+            color: #d1d1e9;
+            font-size: 1.1em;
+            background: rgba(30, 30, 46, 0.6);
+            padding: 25px;
+            border-radius: 15px;
+        }
+        .controls {
+            margin: 25px 0;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button {
+            background: linear-gradient(to right, #ff6b6b, #ff8e53);
+            border: none;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
+            font-size: 1em;
+        }
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.6);
+        }
+        @media (max-width: 1000px) {
+            #chart-container, .legend-container {
+                width: 95%;
+                height: auto;
+            }
+            h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>音樂元素全景旭日圖</h1>
+    
+    <div class="controls">
+        <button id="zoom-in">放大</button>
+        <button id="zoom-out">縮小</button>
+        <button id="reset">重置視圖</button>
+    </div>
+    
+    <div id="chart-container"></div>
+    
+    <div class="description">
+        <p>此旭日圖全面展示音樂創作中的各類元素，從基礎音樂結構到複雜風格流派，從演奏技巧到演唱效果。外層環代表主要分類，內層環展示具體元素。每個區塊的大小代表該元素在音樂創作中的重要性指數。</p>
+    </div>
+    
+    <div class="legend-container">
+        <div class="legend-title">音樂元素分類圖例</div>
+        <div class="legend" id="legend"></div>
+    </div>
+
+    <script>
+        // 音樂元素數據結構
+        const musicData = {
+            name: "音樂元素",
+            children: [
+                {
+                    name: "音樂結構",
+                    children: [
+                        { name: "[solo] - 獨奏/獨唱", value: 90 },
+                        { name: "[melody] - 旋律", value: 120 },
+                        { name: "[harmony] - 和聲", value: 110 },
+                        { name: "[rhythm] - 節奏", value: 115 },
+                        { name: "[bassline] - 低音線", value: 85 },
+                        { name: "[chord progression] - 和弦進行", value: 105 },
+                        { name: "[intro] - 前奏", value: 75 },
+                        { name: "[outro] - 尾奏", value: 70 },
+                        { name: "[interlude] - 插曲", value: 65 }
+                    ]
+                },
+                {
+                    name: "演奏技巧",
+                    children: [
+                        { name: "[guitar riff] - 吉他段", value: 95 },
+                        { name: "[arpeggio] - 分解和弦", value: 85 },
+                        { name: "[cadenza] - 裝飾段", value: 80 },
+                        { name: "[improvisation] - 即興", value: 90 },
+                        { name: "[modulation] - 轉調", value: 75 },
+                        { name: "[syncopation] - 切分音", value: 70 },
+                        { name: "[crescendo] - 漸強", value: 65 },
+                        { name: "[diminuendo] - 漸弱", value: 60 }
+                    ]
+                },
+                {
+                    name: "風格流派",
+                    children: [
+                        { name: "[Blues] - 藍調", value: 95 },
+                        { name: "[Jazz] - 爵士", value: 100 },
+                        { name: "[Rock] - 搖滾", value: 110 },
+                        { name: "[Pop] - 流行", value: 120 },
+                        { name: "[Hip hop] - 嘻哈", value: 105 },
+                        { name: "[R&B] - 節奏藍調", value: 90 },
+                        { name: "[Electronic] - 電子", value: 100 },
+                        { name: "[Classical] - 古典", value: 85 }
+                    ]
+                },
+                {
+                    name: "演唱效果",
+                    children: [
+                        { name: "[reverb] - 混響", value: 85 },
+                        { name: "[vibrato] - 顫音", value: 80 },
+                        { name: "[falsetto] - 假聲", value: 75 },
+                        { name: "[belting] - 大聲唱", value: 70 },
+                        { name: "[auto-tune] - 自動調音", value: 65 },
+                        { name: "[distortion] - 失真", value: 60 }
+                    ]
+                },
+                {
+                    name: "節奏速度",
+                    children: [
+                        { name: "[allegro] - 快板", value: 80 },
+                        { name: "[adagio] - 慢板", value: 75 },
+                        { name: "[accelerando] - 漸快", value: 70 },
+                        { name: "[rubato] - 自由速度", value: 65 },
+                        { name: "[bpm] - 每分鐘拍數", value: 85 }
+                    ]
+                },
+                {
+                    name: "樂器分類",
+                    children: [
+                        { name: "[piano] - 鋼琴", value: 110 },
+                        { name: "[guitar] - 吉他", value: 105 },
+                        { name: "[drums] - 鼓", value: 95 },
+                        { name: "[violin] - 小提琴", value: 90 },
+                        { name: "[saxophone] - 薩克斯", value: 85 }
+                    ]
+                },
+                {
+                    name: "人聲表現",
+                    children: [
+                        { name: "[head voice] - 頭聲", value: 80 },
+                        { name: "[chest voice] - 胸聲", value: 85 },
+                        { name: "[vocal fry] - 假聲", value: 70 },
+                        { name: "[whisper] - 耳語", value: 65 },
+                        { name: "[scream] - 尖叫", value: 60 }
+                    ]
+                },
+                {
+                    name: "特殊效果",
+                    children: [
+                        { name: "[applause] - 掌聲", value: 75 },
+                        { name: "[cheering] - 歡呼", value: 70 },
+                        { name: "[birds chirping] - 鳥鳴", value: 60 },
+                        { name: "[phone ringing] - 電話鈴", value: 55 }
+                    ]
+                }
+            ]
+        };
+
+        // 設置旭日圖尺寸
+        const width = 900;
+        const height = 900;
+        const radius = Math.min(width, height) / 2;
+        
+        // 創建顏色比例尺
+        const color = d3.scaleOrdinal()
+            .domain(["音樂結構", "演奏技巧", "風格流派", "演唱效果", "節奏速度", "樂器分類", "人聲表現", "特殊效果"])
+            .range([
+                "#ff6b6b", "#ffa502", "#2ed573", "#1e90ff", 
+                "#a55eea", "#ff7f50", "#20bf6b", "#778ca3"
+            ]);
+
+        // 創建分區佈局
+        const partition = data => {
+            const root = d3.hierarchy(data)
+                .sum(d => d.value)
+                .sort((a, b) => b.value - a.value);
+            return d3.partition()
+                .size([2 * Math.PI, radius * 1.6])
+                (root);
+        };
+
+        // 創建弧生成器
+        const arc = d3.arc()
+            .startAngle(d => d.x0)
+            .endAngle(d => d.x1)
+            .padAngle(1 / radius)
+            .padRadius(radius / 2)
+            .innerRadius(d => d.y0 * 0.95)
+            .outerRadius(d => Math.max(d.y0 * 0.95, d.y1 * 0.95 - 1));
+
+        // 創建SVG容器
+        const svg = d3.select("#chart-container")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [-width / 2, -height / 2, width, height])
+            .style("overflow", "visible");
+
+        // 縮放控制
+        let currentTransform = d3.zoomIdentity;
+        
+        const zoom = d3.zoom()
+            .scaleExtent([0.5, 8])
+            .on("zoom", (event) => {
+                currentTransform = event.transform;
+                g.attr("transform", event.transform);
+            });
+            
+        svg.call(zoom);
+        
+        // 創建圖表組
+        const g = svg.append("g");
+        
+        // 處理數據並創建分區
+        const root = partition(musicData);
+        
+        // 添加弧段
+        const path = g.append("g")
+            .selectAll("path")
+            .data(root.descendants().filter(d => d.depth))
+            .join("path")
+            .attr("fill", d => {
+                while (d.depth > 1) d = d.parent;
+                return color(d.data.name);
+            })
+            .attr("fill-opacity", 0.85)
+            .attr("stroke", "#fff")
+            .attr("stroke-width", 0.5)
+            .attr("d", arc)
+            .on("mouseover", function(event, d) {
+                d3.select(this)
+                    .attr("stroke-width", 2)
+                    .attr("stroke", "#ff6b6b")
+                    .raise();
+                
+                const tooltip = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .html(`<strong>${d.data.name.split("] - ")[0]}]</strong><br>
+                           <em>${d.data.name.split("] - ")[1]}</em><br>
+                           重要性指數: ${d.value}`)
+                    .style("left", `${event.pageX + 15}px`)
+                    .style("top", `${event.pageY + 15}px`);
+            })
+            .on("mouseout", function() {
+                d3.select(this)
+                    .attr("stroke-width", 0.5)
+                    .attr("stroke", "#fff");
+                d3.select(".tooltip").remove();
+            })
+            .on("click", (event, d) => {
+                focusOn(d);
+            });
+
+        // 添加文本標籤
+        const text = g.append("g")
+            .attr("pointer-events", "none")
+            .attr("text-anchor", "middle")
+            .attr("font-size", 11)
+            .attr("font-family", "Microsoft JhengHei")
+            .selectAll("text")
+            .data(root.descendants().filter(d => d.depth && (d.y0 + d.y1) / 2 * (d.x1 - d.x0) > 10))
+            .join("text")
+            .attr("transform", function(d) {
+                const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
+                const y = (d.y0 + d.y1) / 2 * 0.95;
+                return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+            })
+            .attr("dy", "0.35em")
+            .text(d => {
+                const parts = d.data.name.split("] - ");
+                return parts.length > 1 ? parts[0] + "]" : d.data.name;
+            })
+            .attr("fill", "#fff")
+            .style("font-size", d => {
+                const depthScale = d3.scaleLinear()
+                    .domain([1, 3])
+                    .range([14, 10])
+                    .clamp(true);
+                return `${depthScale(d.depth)}px`;
+            })
+            .style("font-weight", d => d.depth === 1 ? "bold" : "normal")
+            .style("text-shadow", "0 0 5px rgba(0,0,0,0.8)");
+
+        // 添加中心標題
+        g.append("text")
+            .attr("text-anchor", "middle")
+            .attr("dy", "0.35em")
+            .attr("font-size", "24px")
+            .attr("font-weight", "bold")
+            .attr("fill", "#ff6b6b")
+            .style("text-shadow", "0 0 15px rgba(255, 107, 107, 0.5)")
+            .text("音樂元素");
+
+        // 聚焦功能
+        function focusOn(d) {
+            const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
+            const y = (d.y0 + d.y1) / 2;
+            const scale = 2.5;
+            
+            currentTransform = d3.zoomIdentity
+                .translate(width / 2, height / 2)
+                .scale(scale)
+                .translate(-x * scale, -y * scale);
+                
+            g.transition()
+                .duration(750)
+                .attr("transform", currentTransform);
+        }
+
+        // 創建圖例
+        const legend = d3.select("#legend");
+        
+        const legendItems = legend.selectAll(".legend-item")
+            .data(color.domain())
+            .enter()
+            .append("div")
+            .attr("class", "legend-item");
+            
+        legendItems.append("div")
+            .attr("class", "legend-color")
+            .style("background-color", d => color(d));
+            
+        legendItems.append("div")
+            .text(d => d);
+
+        // 按鈕功能
+        d3.select("#zoom-in").on("click", () => {
+            currentTransform = currentTransform.scale(1.3);
+            g.transition().attr("transform", currentTransform);
+        });
+        
+        d3.select("#zoom-out").on("click", () => {
+            currentTransform = currentTransform.scale(0.7);
+            g.transition().attr("transform", currentTransform);
+        });
+        
+        d3.select("#reset").on("click", () => {
+            currentTransform = d3.zoomIdentity;
+            g.transition().attr("transform", currentTransform);
+        });
+    </script>
+</body>
+</html>
